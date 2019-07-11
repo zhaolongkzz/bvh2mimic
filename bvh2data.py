@@ -220,9 +220,9 @@ class BVHTransfer(BVHReader):
         self.need_motions = []
         self.temp_quat = {}
         self.temp = {}
-        self.need_all_joints = [ "Hips", "LowerBack", "Spine", "Spine1", "Neck", "Neck1", 
-                                 "RightLeg", "RightFoot", "RightArm", "RightForeArm", "RightUpLeg",
-                                 "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftArm", "LeftForeArm"]
+        # self.need_all_joints = [ "Hips", "LowerBack", "Spine", "Spine1", "Neck", "Neck1", 
+        #                          "RightLeg", "RightFoot", "RightArm", "RightForeArm", "RightUpLeg",
+        #                          "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftArm", "LeftForeArm"]
         self.chest = ["Hips", "LowerBack", "Spine", "Spine1"]
         self.neck = ["Spine1", "Neck", "Neck1"]
         self.need_joints = [ "Hips", "Spine1", "Neck1", 
@@ -330,23 +330,30 @@ class BVHTransfer(BVHReader):
                           self.scaling_factor * (root.offset[2]))
         
         # compute the continuous several joints
-        # if root_frame in self.chest:
-        #     self.temp[root_frame] = mat_rot
-        #     if root_frame == "Spine1":
-        #         for i in self.temp:
-        #             mat_rot = mat_rot * self.temp[i]
-        # if root_frame in self.neck:
-        #     self.temp[root_frame] = mat_rot
-        #     if root_frame == "Neck1":
-        #         for i in self.temp:
-        #             mat_rot = mat_rot * self.temp[i]
+        if root_frame in self.chest:
+            self.temp[root_frame] = mat_rot
+            if root_frame == "Spine1":
+                for i in self.temp:
+                    mat_rot = mat_rot * self.temp[i]
+        if root_frame in self.neck:
+            self.temp[root_frame] = mat_rot
+            if root_frame == "Neck1":
+                for i in self.temp:
+                    mat_rot = mat_rot * self.temp[i]
 
-        if root_frame in self.revolute_joints:
-            temp_rot = np.array([yrot])                          # knee and elbow is 1D
-        else:
-            temp_rot = self.quaternion_from_matrix(mat_rot)
-        # temp_rot = self.quaternion_from_matrix(mat_rot)        # all is 4D
+        '''
+        python: anim/KinTree.cpp:1574: static void cKinTree::LerpPoses(const Eigen::MatrixXd &,
+         const Eigen::VectorXd &, const Eigen::VectorXd &, double,
+          Eigen::VectorXd &): Assertion `std::abs(rot0.norm() - 1) < 0.000001' failed.
+        '''
+        # if root_frame in self.revolute_joints:
+        #     temp_rot = np.array([yrot])                          # knee and elbow is 1D
+
+        # else:
+        #     temp_rot = self.quaternion_from_matrix(mat_rot)
+        temp_rot = self.quaternion_from_matrix(mat_rot)        # all is 4D
         
+
         # save what joints we need, and put in dict in order
         mimic_dict = dict(enumerate(self.need_joints))
         if root_frame in self.need_joints:
