@@ -4,8 +4,7 @@ import string
 import argparse
 # import tf
 import numpy as np
-from pyquaternion import Quaternion
-
+# from pyquaternion import Quaternion
 
 humanoid_body = ["root", "chest", "neck", 
                 "right_hip", "right_knee", "right_ankle", 
@@ -41,6 +40,7 @@ class BVHReader:
     def __init__(self, filename):
         self.filename = filename
         self.tokenlist = []
+        # The current line number
         self.linenr = 0
         self.frames = 0
 
@@ -213,25 +213,36 @@ class BVHReader:
 class BVHTransfer(BVHReader):
     def __init__(self, filename, root_frame):
         BVHReader.__init__(self, filename)
-        # self.br = tf.TransformBroadcaster()
         # all the motions of BVH files
         self.all_motions = []
         # what the joint part I need for mimicking
         self.need_motions = []
+
         self.temp_quat = {}
-        self.temp = {}
-        # self.need_all_joints = [ "Hips", "LowerBack", "Spine", "Spine1", "Neck", "Neck1", 
-        #                          "RightLeg", "RightFoot", "RightArm", "RightForeArm", "RightUpLeg",
-        #                          "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftArm", "LeftForeArm"]
-        self.chest = ["Hips", "LowerBack", "Spine", "Spine1"]
-        self.neck = ["Spine1", "Neck", "Neck1"]
+        self.temp_chest = {}
+        self.temp_neck = {}
+        self.temp_lhip = {}
+        self.temp_rhip = {}
+        self.temp_larm = {}
+        self.temp_rarm = {}
+
+        self.chest = ["LowerBack", "Spine", "Spine1"]
+        self.neck = ["Neck", "Neck1"]
+        self.RHip = ["RHipJoint", "RightUpLeg"]
+        self.RArm = ["RightShoulder", "RightArm"]
+        self.LHip = ["LHipJoint", "LeftUpLeg"]
+        self.LArm = ["LeftShoulder", "LeftArm"]
+
         self.need_joints = [ "Hips", "Spine1", "Neck1", 
-                             "RightLeg", "RightFoot", "RightArm", "RightForeArm", "RightUpLeg",
-                             "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftArm", "LeftForeArm"]              
-        self.revolute_joints = ["RightLeg", "RightForeArm", "LeftLeg", "LeftForeArm"]
+                             "RightUpLeg", "RightLeg", "RightFoot", "RightArm", "RightForeArm",
+                             "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftArm", "LeftForeArm"]
+        self.revolute_joints_leg = ["LeftLeg", "RightLeg"]
+        self.revolute_joints_arm = ["LeftForeArm", "RightForeArm"]     # FIXME:
+
         self.dt = 0.5
+        self.baseline = 0
         self.num_motions = 1
-        self.n = 15
+        self.n = 10
         self.root_frame = root_frame
 
         self.counter = 0
@@ -249,7 +260,7 @@ class BVHTransfer(BVHReader):
     def onFrame(self, values):
         self.all_motions.append(values)
             
-    def rootJoint(self, root, root_frame):
+    def rootJoint(self, root, parent_frame):
         if root.isEndSite():
             return
         
@@ -261,18 +272,29 @@ class BVHTransfer(BVHReader):
                              [0.,1.,0.,0.], 
                              [0.,0.,1.,0.], 
                              [0.,0.,0.,1.] ])
+        mat_rot_temp = np.array([ [1.,0.,0.,0.], 
+                                  [0.,1.,0.,0.], 
+                                  [0.,0.,1.,0.], 
+                                  [0.,0.,0.,1.] ])
 
         for channel in root.channels:
             keyval = self.this_motion[self.counter]
             if(channel == "Xposition"):
                 flag_trans = True
                 x = keyval
+                # self.need_motions.append(self.dt * self.n)
+                self.need_motions.append(self.dt * 20)            # FIXME:
+                self.need_motions.append(x * self.scaling_factor)
             elif(channel == "Yposition"):
                 flag_trans = True
                 y = keyval
+                if self.baseline == 0:
+                    self.baseline = y * self.scaling_factor - 0.886
+                self.need_motions.append(y * self.scaling_factor - self.baseline)
             elif(channel == "Zposition"):
                 flag_trans = True
                 z = keyval
+                self.need_motions.append(z * self.scaling_factor)
             elif(channel == "Xrotation"):
                 flag_rot = True
                 xrot = keyval
@@ -303,6 +325,8 @@ class BVHTransfer(BVHReader):
                 flag_rot = True
                 zrot = keyval
                 # temp.append(zrot)
+                # if root.name == "RightUpLeg":
+                #     zrot = -zrot + 180
                 theta = math.radians(zrot)
                 c = math.cos(theta)
                 s = math.sin(theta)
@@ -315,50 +339,77 @@ class BVHTransfer(BVHReader):
                 return
             self.counter += 1
         
-        if flag_trans:
-            x_scaling = self.scaling_factor * (x + root.offset[0])
-            y_scaling = self.scaling_factor * (y + root.offset[1])
-            z_scaling = self.scaling_factor * (z + root.offset[2])
-            self.need_motions.append(self.dt * self.n)
-            self.need_motions.append(x_scaling)
-            self.need_motions.append(y_scaling)
-            self.need_motions.append(z_scaling)
-            temp_trans = (x_scaling, y_scaling, z_scaling)
-        else:
-            temp_trans = (self.scaling_factor * (root.offset[0]), 
-                          self.scaling_factor * (root.offset[1]), 
-                          self.scaling_factor * (root.offset[2]))
-        
         # compute the continuous several joints
-        if root_frame in self.chest:
-            self.temp[root_frame] = mat_rot
-            if root_frame == "Spine1":
-                for i in self.temp:
-                    mat_rot = mat_rot * self.temp[i]
-        if root_frame in self.neck:
-            self.temp[root_frame] = mat_rot
-            if root_frame == "Neck1":
-                for i in self.temp:
-                    mat_rot = mat_rot * self.temp[i]
+        if root.name in self.chest:
+            self.temp_chest[root.name] = mat_rot
+            if root.name == "Spine1":
+                for i in self.temp_chest:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_chest[i])
+                mat_rot = mat_rot_temp
+                parent_frame = "Hips"
 
-        '''
+        if root.name in self.neck:
+            self.temp_neck[root.name] = mat_rot
+            if root.name == "Neck1":
+                for i in self.temp_neck:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_neck[i])
+                mat_rot = mat_rot_temp
+                parent_frame = "Spine1"
+
+        elif root.name in self.LHip:
+            self.temp_lhip[root.name] = mat_rot
+            if root.name == "LeftUpLeg":
+                for i in self.temp_lhip:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_lhip[i])
+                mat_rot = mat_rot_temp
+                parent_frame = "Hips"
+
+        elif root.name in self.RHip:
+            self.temp_rhip[root.name] = mat_rot
+            if root.name == "RightUpLeg":
+                for i in self.temp_rhip:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rhip[i])
+                mat_rot = mat_rot_temp
+                parent_frame = "Hips"
+
+        elif root.name in self.LArm:
+            self.temp_larm[root.name] = mat_rot
+            if root.name == "LeftArm":
+                for i in self.temp_larm:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_larm[i])
+                mat_rot = mat_rot_temp
+                parent_frame = "Spine1"
+
+        elif root.name in self.RArm:
+            self.temp_rarm[root.name] = mat_rot
+            if root.name == "RightArm":
+                for i in self.temp_rarm:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rarm[i])
+                mat_rot = mat_rot_temp
+                parent_frame = "Spine1"
+
+        ''' FIXME:
         python: anim/KinTree.cpp:1574: static void cKinTree::LerpPoses(const Eigen::MatrixXd &,
          const Eigen::VectorXd &, const Eigen::VectorXd &, double,
           Eigen::VectorXd &): Assertion `std::abs(rot0.norm() - 1) < 0.000001' failed.
         '''
-        # if root_frame in self.revolute_joints:
-        #     temp_rot = np.array([yrot])                          # knee and elbow is 1D
-
-        # else:
-        #     temp_rot = self.quaternion_from_matrix(mat_rot)
-        temp_rot = self.quaternion_from_matrix(mat_rot)        # all is 4D
+        if root.name in self.need_joints:
+            # if root.name in self.revolute_joints_leg:
+            #     theta = math.radians(xrot)
+            #     temp_rot = np.array([theta])                          # knee and elbow is 1D
+            #     # temp_rot = np.array([0])
+            # elif root.name in self.revolute_joints_arm:
+            #     theta = math.radians(xrot-90)
+            #     # temp_rot = np.array([theta])                          # knee and elbow is 1D
+            #     temp_rot = np.array([0])
+            # else:
+            # temp_rot = self.rotmat2quat(mat_rot)
+            temp_rot = self.quaternion_from_matrix(mat_rot)
+            
+            # save what joints we need, and put in dict in order
+            mimic_dict = dict(enumerate(self.need_joints))
+            self.temp_quat[list(mimic_dict.values()).index(root.name)] = temp_rot 
         
-
-        # save what joints we need, and put in dict in order
-        mimic_dict = dict(enumerate(self.need_joints))
-        if root_frame in self.need_joints:
-            self.temp_quat[list(mimic_dict.values()).index(root_frame)] = temp_rot
-
         # Cyclic traversal
         for each_child in root.children:
             self.rootJoint(each_child, root.name)
@@ -377,9 +428,9 @@ class BVHTransfer(BVHReader):
         t = np.trace(M)
         if t > M[3, 3]:
             q[3] = t
-            q[2] = M[1, 0] - M[0, 1]
-            q[1] = M[0, 2] - M[2, 0]
-            q[0] = M[2, 1] - M[1, 2]
+            q[2] = M[1, 0] - M[0, 1]               # x
+            q[1] = M[0, 2] - M[2, 0]               # y
+            q[0] = M[2, 1] - M[1, 2]               # z
         else:
             i, j, k = 0, 1, 2
             if M[1, 1] > M[0, 0]:
@@ -392,7 +443,9 @@ class BVHTransfer(BVHReader):
             q[k] = M[k, i] + M[i, k]
             q[3] = M[k, j] - M[j, k]
         q *= 0.5 / math.sqrt(t * M[3, 3])
-        return q
+
+        return [q[3], q[2], q[1], q[0]]
+        # return [q[3], q[2], q[1], q[0]]
 
     def rotmat2quat(self, R):
         """
@@ -415,7 +468,8 @@ class BVHTransfer(BVHReader):
         q     = np.zeros(4)
         q[0]  = np.cos(theta/2)
         q[1:] = r0 * np.sin(theta/2)
-        return q
+        # return [q[0], -q[3], q[2], q[1]]     # FIXME:
+        return [q[0], q[1], q[2], q[3]]
     
     def transfer(self, output_name):
         self.read()
@@ -434,8 +488,7 @@ class BVHTransfer(BVHReader):
                 # print(self.need_motions)
                 self.need_motions.extend(temp_quat[i])
         return self.need_motions, self.frames
-
-
+    
 def save_file(name, loop, sample=False, lists=[[1,2,3],[2,3,4]]):
     """
     Save data to the default format of mimic
@@ -457,11 +510,15 @@ def save_file(name, loop, sample=False, lists=[[1,2,3],[2,3,4]]):
         if count == len(lists):
             file_handle.write(str(list(i)) + '\n')
             break
-        if sample and count % 15 == 0:
+        if sample and count % 10 == 0:
             file_handle.write(str(list(i)) + ',\n')
         count += 1
-        # else:
+
+        # if sample:
         #     file_handle.write(str(list(i)) + ',\n')
+        #     file_handle.write(str(list(i)) + ',\n')
+        #     file_handle.write(str(list(i)) + '\n')
+        #     break
 
     file_handle.write(']\n}')
     file_handle.close()
@@ -470,17 +527,15 @@ def save_file(name, loop, sample=False, lists=[[1,2,3],[2,3,4]]):
 def argsparser():
     parser = argparse.ArgumentParser("python BVHBroadcaster.py bvh_file base_frame --name --loop")
     parser.add_argument('bvh_file', default="./data/mocaps/22_13.bvh", help="A path to bvh file that you want to broadcast")
-    # parser.add_argument('file_name', default="backfilp", help="the name of bvh file")
     parser.add_argument('base_frame', default="Hips", help="An existing frame in rviz on which the skeleton will be loaded")
-    parser.add_argument('-n', '--name', default="abackflip", help="Node name, default: BVHBroadcaster")
+    parser.add_argument('-n', '--name', default="abackflip", help="The name of bvh file")
     parser.add_argument('-l', '--loop', default="wrap", choices=["wrap", "none"], help="Loop broadcasting")
-    # parser.add_argument('-l', '--loop', action="store_true", help="Loop broadcasting")
     return parser.parse_args()
 
 def main(args):
     print("===> Name of output: humanoid3d_{}".format(args.name))
     bvh2mimic = BVHTransfer(args.bvh_file, args.base_frame)
-    print("===> Broadcasting bvh file: humanoid3d_{1} ({0}) on frame {2}".format(args.bvh_file, args.name, args.base_frame))
+    print("===> Transfering bvh file: humanoid3d_{1} ({0}) on frame {2}".format(args.bvh_file, args.name, args.base_frame))
     
     # Transfer CMU dataset to Mimic format
     need_motions, frames = bvh2mimic.transfer(args.name)
@@ -490,16 +545,25 @@ def main(args):
     
     # Save file
     if args.loop:
-        print("===> Loop: Wrap")
+        print("===> Loop: wrap")
         sample = True
     else:
-        print("===> Only once")
-        smaple = False
+        print("===> Loop: none")
     save_file(args.name, args.loop, sample, need_motions)
     print("Transfering done and exit~\n")
 
-def test():
-    pass
+    
+def test(args):
+    rospy.init_node(args.name)
+    # file_name = "/home/mingfei/Documents/RobotManipulationProject/mocap/62/62_07.bvh"
+    bvh_test = BVHTransfer(args.bvh_file, args.base_frame)
+    rospy.loginfo("Broadcasting bvh file (%s) on frame %s"%(args.bvh_file, args.base_frame))
+    if args.loop:
+        rospy.loginfo("Loop")
+    else: 
+        rospy.loginfo("Only once")
+    bvh_test.broadcast(loop=args.loop)
+    rospy.loginfo("Broadcasting done")
 
 if __name__ == '__main__':
     args = argsparser()
