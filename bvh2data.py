@@ -218,7 +218,7 @@ class BVHTransfer(BVHReader):
         # what the joint part I need for mimicking
         self.need_motions = []
 
-        self.temp_quat = {}
+        self.quat = {}
         self.temp_chest = {}
         self.temp_neck = {}
         self.temp_lhip = {}
@@ -323,7 +323,7 @@ class BVHTransfer(BVHReader):
 
             elif(channel == "Zrotation"):
                 flag_rot = True
-                zrot = keyval
+                zrot = -keyval
                 # temp.append(zrot)
                 # if root.name == "RightUpLeg":
                 #     zrot = -zrot + 180
@@ -404,20 +404,26 @@ class BVHTransfer(BVHReader):
             #     temp_rot = np.array([0])
             # else:
             # temp_rot = self.rotmat2quat(mat_rot)
-            temp_rot = self.quaternion_from_matrix(mat_rot)
+            temp_quat = self.quaternion_from_matrix(mat_rot)
+            # if root.name in ["RightUpLeg", "LeftUpLeg"]:
+            #     q = temp_quat
+            #     temp_quat = [-q[3], -q[2], -q[1], q[0]]
+            # if root.name in ["RightArm", "LeftArm"]:
+            #     q = temp_quat
+            #     temp_quat = [q[3], q[2], -q[1], q[0]]
+                
             
             # save what joints we need, and put in dict in order
             mimic_dict = dict(enumerate(self.need_joints))
-            self.temp_quat[list(mimic_dict.values()).index(root.name)] = temp_rot 
+            self.quat[list(mimic_dict.values()).index(root.name)] = temp_quat 
         
         # Cyclic traversal
         for each_child in root.children:
             self.rootJoint(each_child, root.name)
-        return self.temp_quat
+        return self.quat
 
     def quaternion_from_matrix(self, matrix):
         """Return quaternion from rotation matrix.
-
         >>> R = rotation_matrix(0.123, (1, 2, 3))
         >>> q = quaternion_from_matrix(R)
         >>> numpy.allclose(q, [0.0164262, 0.0328524, 0.0492786, 0.9981095])
@@ -444,7 +450,7 @@ class BVHTransfer(BVHReader):
             q[3] = M[k, j] - M[j, k]
         q *= 0.5 / math.sqrt(t * M[3, 3])
 
-        return [q[3], q[2], q[1], q[0]]            # [q[3], -q[2], q[1], q[0]]
+        return [q[3], -q[2], q[1], -q[0] ]            # [q[3], -q[2], q[1], q[0]]
         # return [q[3], q[2], q[1], q[0]]
 
     def rotmat2quat(self, R):
@@ -471,7 +477,7 @@ class BVHTransfer(BVHReader):
         # return [q[0], -q[3], q[2], q[1]]     # FIXME:
         return [q[0], q[1], q[2], q[3]]
 
-    def euler_to_quaternion(self, xrot, yrot, zrot):
+    def euler_to_quaternion(self, zrot, yrot, xrot):
         heading = math.radians(zrot)          # z
         attitude = math.radians(yrot)         # y
         bank = math.radians(xrot)             # x
@@ -487,7 +493,6 @@ class BVHTransfer(BVHReader):
         x = s1 * s2 * c3 + c1 * c2 * s3
         y = s1 * c2 * c3 + c1 * s2 * s3
         z = c1 * s2 * c3 - s1 * c2 * s3
-
         return [w, x, y, z]
 
     def transfer(self, output_name):
@@ -497,15 +502,15 @@ class BVHTransfer(BVHReader):
             self.counter = 0
             self.this_motion = self.all_motions[ind]
 
-            temp_quat = self.rootJoint(self._root, self.root_frame)
+            quat = self.rootJoint(self._root, self.root_frame)
             
             # transfer data to quaternion
             # quat = rotmat2quat(R)
 
             for i in range(len(self.need_joints)):
-                # print(temp_quat[i])
+                # print(quat[i])
                 # print(self.need_motions)
-                self.need_motions.extend(temp_quat[i])
+                self.need_motions.extend(quat[i])
         return self.need_motions, self.frames
     
 def save_file(name, loop, sample=False, lists=[[1,2,3],[2,3,4]]):
@@ -530,6 +535,7 @@ def save_file(name, loop, sample=False, lists=[[1,2,3],[2,3,4]]):
             file_handle.write(str(list(i)) + '\n')
             break
         if sample and count % 10 == 0:
+        # if sample:
             file_handle.write(str(list(i)) + ',\n')
         count += 1
 
