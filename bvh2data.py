@@ -444,7 +444,7 @@ class BVHTransfer(BVHReader):
             q[3] = M[k, j] - M[j, k]
         q *= 0.5 / math.sqrt(t * M[3, 3])
 
-        return [q[3], q[2], q[1], q[0]]
+        return [q[3], q[2], q[1], q[0]]            # [q[3], -q[2], q[1], q[0]]
         # return [q[3], q[2], q[1], q[0]]
 
     def rotmat2quat(self, R):
@@ -470,7 +470,26 @@ class BVHTransfer(BVHReader):
         q[1:] = r0 * np.sin(theta/2)
         # return [q[0], -q[3], q[2], q[1]]     # FIXME:
         return [q[0], q[1], q[2], q[3]]
-    
+
+    def euler_to_quaternion(self, xrot, yrot, zrot):
+        heading = math.radians(zrot)          # z
+        attitude = math.radians(yrot)         # y
+        bank = math.radians(xrot)             # x
+
+        c1 = np.cos(heading/2)
+        c2 = np.cos(attitude/2)
+        c3 = np.cos(bank/2)
+        s1 = np.sin(heading/2)
+        s2 = np.sin(attitude/2)
+        s3 = np.sin(bank/2)
+        # Compute the Quaternion
+        w = c1 * c2 * c3 - s1 * s2 * s3
+        x = s1 * s2 * c3 + c1 * c2 * s3
+        y = s1 * c2 * c3 + c1 * s2 * s3
+        z = c1 * s2 * c3 - s1 * c2 * s3
+
+        return [w, x, y, z]
+
     def transfer(self, output_name):
         self.read()
 
