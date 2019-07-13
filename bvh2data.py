@@ -323,7 +323,7 @@ class BVHTransfer(BVHReader):
 
             elif(channel == "Zrotation"):
                 flag_rot = True
-                zrot = -keyval
+                zrot = keyval
                 # temp.append(zrot)
                 # if root.name == "RightUpLeg":
                 #     zrot = -zrot + 180
@@ -407,10 +407,10 @@ class BVHTransfer(BVHReader):
             temp_quat = self.quaternion_from_matrix(mat_rot)
             # if root.name in ["RightUpLeg", "LeftUpLeg"]:
             #     q = temp_quat
-            #     temp_quat = [-q[3], -q[2], -q[1], q[0]]
+            #     temp_quat = [q[3], q[1], q[2], q[0]]
             # if root.name in ["RightArm", "LeftArm"]:
             #     q = temp_quat
-            #     temp_quat = [q[3], q[2], -q[1], q[0]]
+            #     temp_quat = [q[3], -q[2], -q[1], -q[0] ]
                 
             
             # save what joints we need, and put in dict in order
@@ -450,7 +450,7 @@ class BVHTransfer(BVHReader):
             q[3] = M[k, j] - M[j, k]
         q *= 0.5 / math.sqrt(t * M[3, 3])
 
-        return [q[3], -q[2], q[1], -q[0] ]            # [q[3], -q[2], q[1], q[0]]
+        return [q[3], -q[2], -q[1], -q[0] ]            # [q[3], -q[2], q[1], q[0]]
         # return [q[3], q[2], q[1], q[0]]
 
     def rotmat2quat(self, R):
@@ -513,7 +513,7 @@ class BVHTransfer(BVHReader):
                 self.need_motions.extend(quat[i])
         return self.need_motions, self.frames
     
-def save_file(name, loop, sample=False, lists=[[1,2,3],[2,3,4]]):
+def save_file(name, loop, sample, lists=[[1,2,3],[2,3,4]]):
     """
     Save data to the default format of mimic
     """
@@ -534,8 +534,7 @@ def save_file(name, loop, sample=False, lists=[[1,2,3],[2,3,4]]):
         if count == len(lists):
             file_handle.write(str(list(i)) + '\n')
             break
-        if sample and count % 10 == 0:
-        # if sample:
+        if sample and count % 15 == 0:
             file_handle.write(str(list(i)) + ',\n')
         count += 1
 
