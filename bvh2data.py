@@ -4,6 +4,7 @@ import string
 import argparse
 # import tf
 import numpy as np
+from tqdm import tqdm
 # from pyquaternion import Quaternion
 
 humanoid_body = ["root", "chest", "neck", 
@@ -226,18 +227,18 @@ class BVHTransfer(BVHReader):
         self.temp_larm = {}
         self.temp_rarm = {}
 
-        self.chest = ["LowerBack", "Spine", "Spine1"]
-        self.neck = ["Neck", "Neck1"]
-        self.RHip = ["RHipJoint", "RightUpLeg"]
-        self.RArm = ["RightShoulder", "RightArm"]
-        self.LHip = ["LHipJoint", "LeftUpLeg"]
-        self.LArm = ["LeftShoulder", "LeftArm"]
+        # self.chest = ["LowerBack", "Spine", "Spine1"]
+        # self.neck = ["Neck", "Neck1"]
+        # self.RHip = ["RHipJoint", "RightUpLeg"]
+        # self.RArm = ["RightShoulder", "RightArm"]
+        # self.LHip = ["LHipJoint", "LeftUpLeg"]
+        # self.LArm = ["LeftShoulder", "LeftArm"]      # FIXME:
 
         self.need_joints = [ "Hips", "Spine1", "Neck1", 
                              "RightUpLeg", "RightLeg", "RightFoot", "RightArm", "RightForeArm",
                              "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftArm", "LeftForeArm"]
-        self.revolute_joints_leg = ["LeftLeg", "RightLeg"]
-        self.revolute_joints_arm = ["LeftForeArm", "RightForeArm"]     # FIXME:
+        self.hips_baseline = [0, 0, 0]
+        self.shoulder_baseline = [0, 0, 0]
 
         self.dt = 0.5
         self.baseline = 0
@@ -259,6 +260,9 @@ class BVHTransfer(BVHReader):
 
     def onFrame(self, values):
         self.all_motions.append(values)
+    
+    def offset(self, name):
+        pass
             
     def rootJoint(self, root, parent_frame):
         if root.isEndSite():
@@ -283,13 +287,13 @@ class BVHTransfer(BVHReader):
                 flag_trans = True
                 x = keyval
                 # self.need_motions.append(self.dt * self.n)
-                self.need_motions.append(self.dt * 20)            # FIXME:
+                self.need_motions.append(self.dt * 80)            # FIXME:
                 self.need_motions.append(x * self.scaling_factor)
             elif(channel == "Yposition"):
                 flag_trans = True
                 y = keyval
                 if self.baseline == 0:
-                    self.baseline = y * self.scaling_factor - 0.886
+                    self.baseline = y * self.scaling_factor - 0.89
                 self.need_motions.append(y * self.scaling_factor - self.baseline)
             elif(channel == "Zposition"):
                 flag_trans = True
@@ -298,7 +302,23 @@ class BVHTransfer(BVHReader):
             elif(channel == "Xrotation"):
                 flag_rot = True
                 xrot = keyval
-                # temp.append(xrot)
+                # if root.name == "RightUpLeg":
+                #     xrot = xrot + 60
+                # elif root.name == "LeftUpLeg":
+                #     xrot = xrot + 60
+                # if root.name == "RightLeg":
+                #     xrot = xrot - 100
+                # elif root.name == "LeftLeg":
+                #     xrot = xrot - 100
+                # if root.name in ["RightUpLeg", "LeftUpLeg", "RightArm", "LeftArm"]:
+                #     if self.hips_baseline[2] == 0:
+                #         self.hips_baseline[2] = xrot
+                #     else:
+                #         xrot = xrot - self.hips_baseline[2]
+                #     if self.shoulder_baseline[2] == 0:
+                #         self.shoulder_baseline[2] = xrot
+                #     else:
+                #         xrot = xrot - self.shoulder_baseline[2]
                 theta = math.radians(xrot)
                 c = math.cos(theta)
                 s = math.sin(theta)
@@ -311,7 +331,24 @@ class BVHTransfer(BVHReader):
             elif(channel == "Yrotation"):
                 flag_rot = True
                 yrot = keyval
-                # temp.append(yrot)
+                # if root.name in ["RightUpLeg", "LeftUpLeg", "RightArm", "LeftArm"]:
+                #     if self.hips_baseline[1] == 0:
+                #         self.hips_baseline[1] = yrot
+                #     else:
+                #         yrot = yrot - self.hips_baseline[1]
+                #     if self.shoulder_baseline[1] == 0:
+                #         self.shoulder_baseline[1] = yrot
+                #     else:
+                #         yrot = yrot - self.shoulder_baseline[1]
+                # if root.name == "RightArm":
+                #     yrot = yrot - 20
+                # elif root.name == "LeftArm":
+                #     yrot = yrot + 20
+                # if root.name == "RightUpLeg":
+                #     yrot = yrot - 20
+                # elif root.name == "LeftUpLeg":
+                #     yrot = yrot + 20
+
                 theta = math.radians(yrot)
                 c = math.cos(theta)
                 s = math.sin(theta)
@@ -324,9 +361,20 @@ class BVHTransfer(BVHReader):
             elif(channel == "Zrotation"):
                 flag_rot = True
                 zrot = keyval
-                # temp.append(zrot)
+                # if root.name in ["RightUpLeg", "LeftUpLeg", "RightArm", "LeftArm"]:
+                #     if self.hips_baseline[0] == 0:
+                #         self.hips_baseline[0] = zrot
+                #     else:
+                #         zrot = zrot - self.hips_baseline[0]
+                #     if self.shoulder_baseline[0] == 0:
+                #         self.shoulder_baseline[0] = zrot
+                #     else:
+                #         zrot = zrot - self.shoulder_baseline[0]
                 # if root.name == "RightUpLeg":
-                #     zrot = -zrot + 180
+                #     zrot = zrot - 20
+                # elif root.name == "LeftUpLeg":
+                #     zrot = zrot + 20
+                
                 theta = math.radians(zrot)
                 c = math.cos(theta)
                 s = math.sin(theta)
@@ -340,7 +388,7 @@ class BVHTransfer(BVHReader):
             self.counter += 1
         
         # compute the continuous several joints
-        if root.name in self.chest:
+        if root.name in ["LowerBack", "Spine", "Spine1"]:
             self.temp_chest[root.name] = mat_rot
             if root.name == "Spine1":
                 for i in self.temp_chest:
@@ -348,7 +396,7 @@ class BVHTransfer(BVHReader):
                 mat_rot = mat_rot_temp
                 parent_frame = "Hips"
 
-        if root.name in self.neck:
+        if root.name in ["Neck", "Neck1"]:
             self.temp_neck[root.name] = mat_rot
             if root.name == "Neck1":
                 for i in self.temp_neck:
@@ -356,7 +404,15 @@ class BVHTransfer(BVHReader):
                 mat_rot = mat_rot_temp
                 parent_frame = "Spine1"
 
-        elif root.name in self.LHip:
+        elif root.name in ["RHipJoint", "RightUpLeg"]:
+            self.temp_rhip[root.name] = mat_rot
+            if root.name == "RightUpLeg":
+                for i in self.temp_rhip:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rhip[i])
+                mat_rot = mat_rot_temp
+                parent_frame = "Hips"
+        
+        elif root.name in ["LHipJoint", "LeftUpLeg"]:
             self.temp_lhip[root.name] = mat_rot
             if root.name == "LeftUpLeg":
                 for i in self.temp_lhip:
@@ -364,15 +420,15 @@ class BVHTransfer(BVHReader):
                 mat_rot = mat_rot_temp
                 parent_frame = "Hips"
 
-        elif root.name in self.RHip:
-            self.temp_rhip[root.name] = mat_rot
-            if root.name == "RightUpLeg":
-                for i in self.temp_rhip:
-                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rhip[i])
+        elif root.name in ["RightShoulder", "RightArm"]:
+            self.temp_rarm[root.name] = mat_rot
+            if root.name == "RightArm":
+                for i in self.temp_rarm:
+                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rarm[i])
                 mat_rot = mat_rot_temp
-                parent_frame = "Hips"
-
-        elif root.name in self.LArm:
+                parent_frame = "Spine1"
+        
+        elif root.name in ["LeftShoulder", "LeftArm"]:
             self.temp_larm[root.name] = mat_rot
             if root.name == "LeftArm":
                 for i in self.temp_larm:
@@ -380,41 +436,18 @@ class BVHTransfer(BVHReader):
                 mat_rot = mat_rot_temp
                 parent_frame = "Spine1"
 
-        elif root.name in self.RArm:
-            self.temp_rarm[root.name] = mat_rot
-            if root.name == "RightArm":
-                for i in self.temp_rarm:
-                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rarm[i])
-                mat_rot = mat_rot_temp
-                parent_frame = "Spine1"
-
-        ''' FIXME:
-        python: anim/KinTree.cpp:1574: static void cKinTree::LerpPoses(const Eigen::MatrixXd &,
-         const Eigen::VectorXd &, const Eigen::VectorXd &, double,
-          Eigen::VectorXd &): Assertion `std::abs(rot0.norm() - 1) < 0.000001' failed.
-        '''
+        # save joints we need, and put in dict in order
+        mimic_dict = dict(enumerate(self.need_joints))
         if root.name in self.need_joints:
-            # if root.name in self.revolute_joints_leg:
+            # if root.name in ["LeftLeg", "RightLeg"]:
             #     theta = math.radians(xrot)
-            #     temp_rot = np.array([theta])                          # knee and elbow is 1D
-            #     # temp_rot = np.array([0])
-            # elif root.name in self.revolute_joints_arm:
-            #     theta = math.radians(xrot-90)
-            #     # temp_rot = np.array([theta])                          # knee and elbow is 1D
-            #     temp_rot = np.array([0])
+            #     temp_quat = np.array([theta])                          # knee and elbow is 1D
+            # elif root.name in ["LeftForeArm", "RightForeArm"]:
+            #     theta = math.radians(xrot)
+            #     temp_quat = np.array([theta])                          # knee and elbow is 1D
             # else:
-            # temp_rot = self.rotmat2quat(mat_rot)
             temp_quat = self.quaternion_from_matrix(mat_rot)
-            # if root.name in ["RightUpLeg", "LeftUpLeg"]:
-            #     q = temp_quat
-            #     temp_quat = [q[3], q[1], q[2], q[0]]
-            # if root.name in ["RightArm", "LeftArm"]:
-            #     q = temp_quat
-            #     temp_quat = [q[3], -q[2], -q[1], -q[0] ]
-                
-            
-            # save what joints we need, and put in dict in order
-            mimic_dict = dict(enumerate(self.need_joints))
+
             self.quat[list(mimic_dict.values()).index(root.name)] = temp_quat 
         
         # Cyclic traversal
@@ -450,75 +483,27 @@ class BVHTransfer(BVHReader):
             q[3] = M[k, j] - M[j, k]
         q *= 0.5 / math.sqrt(t * M[3, 3])
 
-        return [q[3], -q[2], -q[1], -q[0] ]            # [q[3], -q[2], q[1], q[0]]
-        # return [q[3], q[2], q[1], q[0]]
-
-    def rotmat2quat(self, R):
-        """
-        converts a rotation matrix to a quaternion
-        """
-        rotdiff = R - R.T
-
-        r = np.zeros(3)
-        r[0] = -rotdiff[1, 2]
-        r[1] =  rotdiff[0, 2]
-        r[2] = -rotdiff[0, 1]
-
-        sin_theta = np.linalg.norm(r) / 2
-        r0 = np.divide(r, np.linalg.norm(r) + np.finfo(np.float32).eps)
-        cos_theta = (np.trace(R) - 1) / 2
-
-        theta = np.arctan2( sin_theta, cos_theta )
-        
-        # compute the quaternion
-        q     = np.zeros(4)
-        q[0]  = np.cos(theta/2)
-        q[1:] = r0 * np.sin(theta/2)
-        # return [q[0], -q[3], q[2], q[1]]     # FIXME:
-        return [q[0], q[1], q[2], q[3]]
-
-    def euler_to_quaternion(self, zrot, yrot, xrot):
-        heading = math.radians(zrot)          # z
-        attitude = math.radians(yrot)         # y
-        bank = math.radians(xrot)             # x
-
-        c1 = np.cos(heading/2)
-        c2 = np.cos(attitude/2)
-        c3 = np.cos(bank/2)
-        s1 = np.sin(heading/2)
-        s2 = np.sin(attitude/2)
-        s3 = np.sin(bank/2)
-        # Compute the Quaternion
-        w = c1 * c2 * c3 - s1 * s2 * s3
-        x = s1 * s2 * c3 + c1 * c2 * s3
-        y = s1 * c2 * c3 + c1 * s2 * s3
-        z = c1 * s2 * c3 - s1 * c2 * s3
-        return [w, x, y, z]
+        return [q[3], q[2], q[1], q[0] ]            # [q[3], -q[2], q[1], q[0]]
 
     def transfer(self, output_name):
         self.read()
-
-        for ind in range(self.num_motions):
+        for ind in tqdm(range(self.num_motions)):
             self.counter = 0
             self.this_motion = self.all_motions[ind]
 
-            quat = self.rootJoint(self._root, self.root_frame)
-            
-            # transfer data to quaternion
-            # quat = rotmat2quat(R)
+            quat = self.rootJoint(self._root, self.root_frame)    # obtain need quaternion from roation
 
-            for i in range(len(self.need_joints)):
+            for i in range(len(self.need_joints)):                # read value from a frame
                 # print(quat[i])
-                # print(self.need_motions)
                 self.need_motions.extend(quat[i])
         return self.need_motions, self.frames
-    
+
+
 def save_file(name, loop, sample, lists=[[1,2,3],[2,3,4]]):
     """
     Save data to the default format of mimic
     """
     file_handle = open('./data/motions/humanoid3d_{}.txt'.format(name), mode='w')
-    # file_handle = open('cmu_{}.txt'.format(name), mode='w')
     file_handle.write('{\n')
     file_handle.write('"Loop": "{0}",\n"Frames":\n[\n'.format(loop))
     # for i in range(frames):
@@ -534,12 +519,12 @@ def save_file(name, loop, sample, lists=[[1,2,3],[2,3,4]]):
         if count == len(lists):
             file_handle.write(str(list(i)) + '\n')
             break
-        if sample and count % 15 == 0:
-            file_handle.write(str(list(i)) + ',\n')
+        if sample and count % 10 == 0:
+            file_handle.write(str(list(i)) + ',\n')         # last line without a comma
         count += 1
 
         # if sample:
-        #     file_handle.write(str(list(i)) + ',\n')
+        #     file_handle.write(str(list(i)) + ',\n')       # print three times with initial state
         #     file_handle.write(str(list(i)) + ',\n')
         #     file_handle.write(str(list(i)) + '\n')
         #     break
@@ -562,12 +547,15 @@ def main(args):
     print("===> Transfering bvh file: humanoid3d_{1} ({0}) on frame {2}".format(args.bvh_file, args.name, args.base_frame))
     
     # Transfer CMU dataset to Mimic format
+    print("=======================================================================")
+    print("Converting\t\"{}\"\tto\t\"humanoid3d_{}\"".format(args.bvh_file, args.name))
     need_motions, frames = bvh2mimic.transfer(args.name)
+    print("=======================================================================")
     num_column = int(len(need_motions) / frames)
     need_motions_temp = np.array(need_motions)
     need_motions = need_motions_temp.reshape(frames, num_column)
     
-    # Save file
+    # Save file with loop or not
     if args.loop:
         print("===> Loop: wrap")
         sample = True
@@ -579,7 +567,6 @@ def main(args):
     
 def test(args):
     rospy.init_node(args.name)
-    # file_name = "/home/mingfei/Documents/RobotManipulationProject/mocap/62/62_07.bvh"
     bvh_test = BVHTransfer(args.bvh_file, args.base_frame)
     rospy.loginfo("Broadcasting bvh file (%s) on frame %s"%(args.bvh_file, args.base_frame))
     if args.loop:
