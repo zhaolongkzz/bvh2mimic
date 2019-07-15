@@ -380,14 +380,16 @@ class BVHTransfer(BVHReader):
         # save joints we need, and put in dict in order
         mimic_dict = dict(enumerate(self.need_joints))
         if root.name in self.need_joints:
-            # if root.name in ["LeftLeg", "RightLeg"]:
-            #     theta = math.radians(xrot)
-            #     temp_quat = np.array([theta])                          # knee and elbow is 1D
+            if root.name in ["LeftLeg", "RightLeg"]:
+                theta = math.radians(xrot)
+                temp_quat = np.array([theta])                          # knee and elbow is 1D
             # elif root.name in ["LeftForeArm", "RightForeArm"]:
             #     theta = math.radians(xrot)
             #     temp_quat = np.array([theta])                          # knee and elbow is 1D
-            # else:
-            temp_quat = self.quaternion_from_matrix(mat_rot)
+            else:
+                temp_quat = self.quaternion_from_matrix(mat_rot)
+
+            # if root.name == ""
 
             self.quat[list(mimic_dict.values()).index(root.name)] = temp_quat 
         
@@ -460,15 +462,16 @@ def save_file(name, loop, sample, lists=[[1,2,3],[2,3,4]]):
         if count == len(lists):
             file_handle.write(str(list(i)) + '\n')
             break
-        if sample and count % 10 == 0:
+        if sample and count % 15 == 0:
             file_handle.write(str(list(i)) + ',\n')         # last line without a comma
         count += 1
-
-        # if sample:
+        
+        # if count == 3:
         #     file_handle.write(str(list(i)) + ',\n')       # print three times with initial state
         #     file_handle.write(str(list(i)) + ',\n')
         #     file_handle.write(str(list(i)) + '\n')
         #     break
+        
 
     file_handle.write(']\n}')
     file_handle.close()
