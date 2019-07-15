@@ -287,7 +287,7 @@ class BVHTransfer(BVHReader):
                 flag_trans = True
                 x = keyval
                 # self.need_motions.append(self.dt * self.n)
-                self.need_motions.append(self.dt * 80)            # FIXME:
+                self.need_motions.append(self.dt * 10)            # FIXME:
                 self.need_motions.append(x * self.scaling_factor)
             elif(channel == "Yposition"):
                 flag_trans = True
@@ -310,15 +310,6 @@ class BVHTransfer(BVHReader):
                 #     xrot = xrot - 100
                 # elif root.name == "LeftLeg":
                 #     xrot = xrot - 100
-                # if root.name in ["RightUpLeg", "LeftUpLeg", "RightArm", "LeftArm"]:
-                #     if self.hips_baseline[2] == 0:
-                #         self.hips_baseline[2] = xrot
-                #     else:
-                #         xrot = xrot - self.hips_baseline[2]
-                #     if self.shoulder_baseline[2] == 0:
-                #         self.shoulder_baseline[2] = xrot
-                #     else:
-                #         xrot = xrot - self.shoulder_baseline[2]
                 theta = math.radians(xrot)
                 c = math.cos(theta)
                 s = math.sin(theta)
@@ -331,15 +322,6 @@ class BVHTransfer(BVHReader):
             elif(channel == "Yrotation"):
                 flag_rot = True
                 yrot = keyval
-                # if root.name in ["RightUpLeg", "LeftUpLeg", "RightArm", "LeftArm"]:
-                #     if self.hips_baseline[1] == 0:
-                #         self.hips_baseline[1] = yrot
-                #     else:
-                #         yrot = yrot - self.hips_baseline[1]
-                #     if self.shoulder_baseline[1] == 0:
-                #         self.shoulder_baseline[1] = yrot
-                #     else:
-                #         yrot = yrot - self.shoulder_baseline[1]
                 # if root.name == "RightArm":
                 #     yrot = yrot - 20
                 # elif root.name == "LeftArm":
@@ -361,15 +343,6 @@ class BVHTransfer(BVHReader):
             elif(channel == "Zrotation"):
                 flag_rot = True
                 zrot = keyval
-                # if root.name in ["RightUpLeg", "LeftUpLeg", "RightArm", "LeftArm"]:
-                #     if self.hips_baseline[0] == 0:
-                #         self.hips_baseline[0] = zrot
-                #     else:
-                #         zrot = zrot - self.hips_baseline[0]
-                #     if self.shoulder_baseline[0] == 0:
-                #         self.shoulder_baseline[0] = zrot
-                #     else:
-                #         zrot = zrot - self.shoulder_baseline[0]
                 # if root.name == "RightUpLeg":
                 #     zrot = zrot - 20
                 # elif root.name == "LeftUpLeg":
@@ -396,43 +369,11 @@ class BVHTransfer(BVHReader):
                 mat_rot = mat_rot_temp
                 parent_frame = "Hips"
 
-        if root.name in ["Neck", "Neck1"]:
+        elif root.name in ["Neck", "Neck1"]:
             self.temp_neck[root.name] = mat_rot
             if root.name == "Neck1":
                 for i in self.temp_neck:
                     mat_rot_temp = np.matmul(mat_rot_temp, self.temp_neck[i])
-                mat_rot = mat_rot_temp
-                parent_frame = "Spine1"
-
-        elif root.name in ["RHipJoint", "RightUpLeg"]:
-            self.temp_rhip[root.name] = mat_rot
-            if root.name == "RightUpLeg":
-                for i in self.temp_rhip:
-                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rhip[i])
-                mat_rot = mat_rot_temp
-                parent_frame = "Hips"
-        
-        elif root.name in ["LHipJoint", "LeftUpLeg"]:
-            self.temp_lhip[root.name] = mat_rot
-            if root.name == "LeftUpLeg":
-                for i in self.temp_lhip:
-                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_lhip[i])
-                mat_rot = mat_rot_temp
-                parent_frame = "Hips"
-
-        elif root.name in ["RightShoulder", "RightArm"]:
-            self.temp_rarm[root.name] = mat_rot
-            if root.name == "RightArm":
-                for i in self.temp_rarm:
-                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_rarm[i])
-                mat_rot = mat_rot_temp
-                parent_frame = "Spine1"
-        
-        elif root.name in ["LeftShoulder", "LeftArm"]:
-            self.temp_larm[root.name] = mat_rot
-            if root.name == "LeftArm":
-                for i in self.temp_larm:
-                    mat_rot_temp = np.matmul(mat_rot_temp, self.temp_larm[i])
                 mat_rot = mat_rot_temp
                 parent_frame = "Spine1"
 
